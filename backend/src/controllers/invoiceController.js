@@ -1,17 +1,19 @@
-const Invoice = require('../models/Invoice');
-const Customer = require('../models/Customer');
-const Product = require('../models/Product');
+const { Invoice, Customer, Product, InvoiceItem } = require('../models/sequelize');
 
 /**
- * @desc    Get all invoices
- * @route   GET /api/invoices
- * @access  Private
+ * Get all invoices
  */
 exports.getInvoices = async (req, res) => {
   try {
-    const invoices = await Invoice.find()
-      .populate('customer', 'name email')
-      .populate('items.product', 'name sku price');
+    const invoices = await Invoice.findAll({
+      include: [
+        { model: Customer },
+        {
+          model: InvoiceItem,
+          include: [Product]
+        }
+      ]
+    });
 
     res.status(200).json({
       success: true,
@@ -19,270 +21,131 @@ exports.getInvoices = async (req, res) => {
       data: invoices
     });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
+
 /**
- * @desc    Get invoice by ID
- * @route   GET /api/invoices/:id
- * @access  Private
+ * Get invoice by ID
  */
 exports.getInvoiceById = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id)
-      .populate('customer', 'name email phone address gstin')
-      .populate('items.product', 'name sku price unit');
-    
+    const invoice = await Invoice.findByPk(req.params.id, {
+      include: [
+        { model: Customer },
+        {
+          model: InvoiceItem,
+          include: [Product]
+        }
+      ]
+    });
+
     if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invoice not found'
-      });
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    res.status(200).json({
-      success: true,
-      data: invoice
-    });
+    res.status(200).json({ success: true, data: invoice });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
+
 /**
- * @desc    Create new invoice
- * @route   POST /api/invoices
- * @access  Private
+ * Create invoice
  */
 exports.createInvoice = async (req, res) => {
   try {
-    const { 
-      invoiceNumber, 
-      customer, 
-      date, 
-      dueDate, 
-      items, 
-      paymentType,
-      notes 
-    } = req.body;
+    const { invoiceNumber, customerId, items, paymentType, notes } = req.body;
 
-    // Check if invoice number already exists
-    const existingInvoice = await Invoice.findOne({ invoiceNumber });
+    const existingInvoice = await Invoice.findOne({ where: { invoiceNumber } });
     if (existingInvoice) {
-      return res.status(400).json({
-        success: false,
-        message: 'Invoice with this number already exists'
-      });
+      return res.status(400).json({ success: false, message: 'Invoice already exists' });
     }
 
-    // Check if customer exists
-    const customerExists = await Customer.findById(customer);
-    if (!customerExists) {
-      return res.status(404).json({
-        success: false,
-        message: 'Customer not found'
-      });
+    const customer = await Customer.findByPk(customerId);
+    if (!customer) {
+      return res.status(404).json({ success: false, message: 'Customer not found' });
     }
 
-    // Validate items and calculate totals
     let subTotal = 0;
-    let taxTotal = 0;
-    let discountTotal = 0;
 
-    // Process each item
-    for (const item of items) {
-      // Check if product exists
-      const product = await Product.findById(item.product);
-      if (!product) {
-        return res.status(404).json({
-          success: false,
-          message: `Product not found: ${item.product}`
-        });
-      }
-
-      // Check if sufficient stock is available
-      if (product.stock < item.quantity) {
-        return res.status(400).json({
-          success: false,
-          message: `Insufficient stock for product: ${product.name}`
-        });
-      }
-
-      // Calculate item total
-      const itemPrice = item.price || product.price;
-      const itemQuantity = item.quantity;
-      const itemDiscount = item.discount || 0;
-      const itemTaxPercent = item.tax || product.taxPercentage;
-      
-      const itemSubtotal = itemPrice * itemQuantity;
-      const itemTaxAmount = (itemSubtotal - itemDiscount) * (itemTaxPercent / 100);
-      
-      // Update totals
-      subTotal += itemSubtotal;
-      taxTotal += itemTaxAmount;
-      discountTotal += itemDiscount;
-
-      // Prepare tax breakdown if needed
-      item.tax = itemTaxAmount;
-      item.total = itemSubtotal + itemTaxAmount - itemDiscount;
-
-      // Update product stock
-      await Product.findByIdAndUpdate(product._id, {
-        $inc: { stock: -itemQuantity }
-      });
-    }
-
-    // Calculate grand total
-    const grandTotal = subTotal + taxTotal - discountTotal;
-
-    // If credit payment, update customer outstanding
-    if (paymentType === 'Credit') {
-      // Check credit limit
-      if (customerExists.creditLimit > 0 && 
-          (customerExists.outstanding + grandTotal) > customerExists.creditLimit) {
-        return res.status(400).json({
-          success: false,
-          message: 'This invoice would exceed customer credit limit'
-        });
-      }
-
-      // Update customer outstanding
-      await Customer.findByIdAndUpdate(customer, {
-        $inc: { outstanding: grandTotal }
-      });
-    }
-
-    // Create invoice
     const invoice = await Invoice.create({
       invoiceNumber,
-      customer,
-      date: date || Date.now(),
-      dueDate,
-      items,
-      subTotal,
-      taxTotal,
-      discountTotal,
-      grandTotal,
+      customerId,
       paymentType: paymentType || 'Cash',
       notes
     });
 
-    // Populate customer and product details for response
-    const populatedInvoice = await Invoice.findById(invoice._id)
-      .populate('customer', 'name')
-      .populate('items.product', 'name');
+    for (const item of items) {
+      const product = await Product.findByPk(item.productId);
+
+      if (!product) {
+        return res.status(404).json({ success: false, message: 'Product not found' });
+      }
+
+      if (product.stock < item.quantity) {
+        return res.status(400).json({ success: false, message: 'Insufficient stock' });
+      }
+
+      const total = product.price * item.quantity;
+      subTotal += total;
+
+      await InvoiceItem.create({
+        invoiceId: invoice.id,
+        productId: product.id,
+        quantity: item.quantity,
+        price: product.price,
+        total
+      });
+
+      await product.update({
+        stock: product.stock - item.quantity
+      });
+    }
+
+    await invoice.update({
+      subTotal,
+      grandTotal: subTotal
+    });
+
+    const fullInvoice = await Invoice.findByPk(invoice.id, {
+      include: [
+        { model: Customer },
+        { model: InvoiceItem, include: [Product] }
+      ]
+    });
 
     res.status(201).json({
       success: true,
       message: 'Invoice created successfully',
-      data: populatedInvoice
+      data: fullInvoice
     });
+
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
 };
 
-/**
- * @desc    Update invoice status
- * @route   PUT /api/invoices/:id/status
- * @access  Private
- */
-exports.updateInvoiceStatus = async (req, res) => {
-  try {
-    const { status } = req.body;
-
-    if (!status || !['Paid', 'Pending', 'Overdue'].includes(status)) {
-      return res.status(400).json({
-        success: false,
-        message: 'Please provide a valid status (Paid, Pending, Overdue)'
-      });
-    }
-
-    const invoice = await Invoice.findById(req.params.id);
-    
-    if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invoice not found'
-      });
-    }
-
-    // If changing from Credit to Paid, update customer outstanding
-    if (invoice.paymentType === 'Credit' && 
-        invoice.status !== 'Paid' && 
-        status === 'Paid') {
-      await Customer.findByIdAndUpdate(invoice.customer, {
-        $inc: { outstanding: -invoice.grandTotal }
-      });
-    }
-
-    // Update invoice status
-    invoice.status = status;
-    await invoice.save();
-
-    res.status(200).json({
-      success: true,
-      message: 'Invoice status updated successfully',
-      data: invoice
-    });
-  } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
-  }
-};
 
 /**
- * @desc    Delete invoice
- * @route   DELETE /api/invoices/:id
- * @access  Private
+ * Delete invoice
  */
 exports.deleteInvoice = async (req, res) => {
   try {
-    const invoice = await Invoice.findById(req.params.id);
-    
+    const invoice = await Invoice.findByPk(req.params.id);
+
     if (!invoice) {
-      return res.status(404).json({
-        success: false,
-        message: 'Invoice not found'
-      });
+      return res.status(404).json({ success: false, message: 'Invoice not found' });
     }
 
-    // If credit invoice and not paid, reduce customer outstanding
-    if (invoice.paymentType === 'Credit' && invoice.status !== 'Paid') {
-      await Customer.findByIdAndUpdate(invoice.customer, {
-        $inc: { outstanding: -invoice.grandTotal }
-      });
-    }
+    await InvoiceItem.destroy({ where: { invoiceId: invoice.id } });
+    await invoice.destroy();
 
-    // Restore product stock
-    for (const item of invoice.items) {
-      await Product.findByIdAndUpdate(item.product, {
-        $inc: { stock: item.quantity }
-      });
-    }
+    res.status(200).json({ success: true, message: 'Invoice deleted' });
 
-    await Invoice.findByIdAndDelete(req.params.id);
-
-    res.status(200).json({
-      success: true,
-      message: 'Invoice deleted successfully'
-    });
   } catch (error) {
-    res.status(500).json({
-      success: false,
-      message: error.message
-    });
+    res.status(500).json({ success: false, message: error.message });
   }
-}; 
+};
