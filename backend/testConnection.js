@@ -1,5 +1,5 @@
 const { Sequelize } = require('sequelize');
-require('dotenv').config();
+require('dotenv').config({ path: 'C:/Users/HP/ERP-Pharma/.env' });
 
 // Log environment variables to debug
 console.log('Environment variables:');

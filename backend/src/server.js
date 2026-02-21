@@ -1,14 +1,20 @@
 const express = require('express');
 const cors = require('cors');
-const { sequelize, connectDB } = require('../config/sequelize');
-const { syncDatabase } = require('./models/sequelize');
 require('dotenv').config();
+
+const { dbConnect } = require('../config/db');
+const { syncDatabase } = require('./models/sequelize');
 
 // Create Express app
 const app = express();
 
-// Middleware
-app.use(cors());
+// ✅ CORS (for deployment)
+// For now allow all origins
+app.use(cors({
+  origin: "*"
+}));
+
+// Body parsers
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
@@ -30,30 +36,35 @@ app.use('/api/invoices', invoiceRoutes);
 app.use('/api/purchases', purchaseRoutes);
 app.use('/api/transactions', transactionRoutes);
 
-// Basic route for testing
+// Health check route
 app.get('/', (req, res) => {
   res.json({ message: 'Welcome to the Pharma ERP API' });
 });
 
-// Connect to PostgreSQL
+// Port
 const PORT = process.env.PORT || 5000;
 
+// Start server
 const startServer = async () => {
   try {
-    // Connect to database
-    await connectDB();
-    
-    // Sync models with database
+    console.log("🔄 Starting server...");
+
+    console.log("⏳ Connecting to database...");
+    await dbConnect();
+    console.log("✅ Database connected successfully!");
+
+    console.log("⏳ Syncing database models...");
     await syncDatabase();
-    
-    // Start server
+    console.log("✅ Database synced successfully!");
+
     app.listen(PORT, () => {
-      console.log(`Server is running on port ${PORT}`);
+      console.log(`🚀 Server running on port ${PORT}`);
     });
+
   } catch (error) {
-    console.error('Failed to start server:', error);
+    console.error('❌ Failed to start server:', error);
     process.exit(1);
   }
 };
 
-startServer(); 
+startServer();

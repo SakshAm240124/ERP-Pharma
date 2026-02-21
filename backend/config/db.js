@@ -1,32 +1,25 @@
-const { Sequelize } = require('sequelize');
-require('dotenv').config();
+import pg from "pg";
+import dotenv from "dotenv";
 
-const sequelize = new Sequelize(
-  process.env.POSTGRES_DB,
-  process.env.POSTGRES_USER,
-  process.env.POSTGRES_PASSWORD,
-  {
-    host: process.env.POSTGRES_HOST,
-    port: process.env.POSTGRES_PORT,
-    dialect: 'postgres',
-    logging: false,
-    pool: {
-      max: 5,
-      min: 0,
-      acquire: 30000,
-      idle: 10000
-    }
-  }
-);
+dotenv.config();
 
-const connectDB = async () => {
+const { Client } = pg;
+
+const client = new Client({
+  host: "localhost",
+  user: process.env.DB_USER,
+  password: process.env.DB_PASSWORD,
+  database: "ERP_PHARMA",
+  port: 5432, // default postgres port
+});
+
+const dbConnect = async () => {
   try {
-    await sequelize.authenticate();
-    console.log('PostgreSQL connection established successfully.');
-  } catch (error) {
-    console.error('Unable to connect to the database:', error);
-    process.exit(1);
+    await client.connect();
+    console.log("✅ PostgreSQL connected (local)");
+  } catch (err) {
+    console.error("❌ DB connection error:", err.message);
   }
 };
 
-module.exports = { sequelize, connectDB }; 
+export { dbConnect, client };
