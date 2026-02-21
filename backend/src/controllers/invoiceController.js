@@ -85,7 +85,7 @@ exports.createInvoice = async (req, res) => {
         return res.status(404).json({ success: false, message: 'Product not found' });
       }
 
-      if (product.stock < item.quantity) {
+      if (product.stockQuantity < item.quantity) {
         return res.status(400).json({ success: false, message: 'Insufficient stock' });
       }
 
@@ -101,7 +101,7 @@ exports.createInvoice = async (req, res) => {
       });
 
       await product.update({
-        stock: product.stock - item.quantity
+        stockQuantity: product.stockQuantity - item.quantity
       });
     }
 
