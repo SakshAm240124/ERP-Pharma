@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const User = require('../models/sequelize/User');
+const User = require('../models/sequelize/user');
 const config = require('../config/config');
 
 /**
