@@ -13,6 +13,4 @@ router.post('/', invoiceController.createInvoice);
 router.delete('/:id', invoiceController.deleteInvoice);
 
 // Update status route
-router.put('/:id/status', invoiceController.updateInvoiceStatus);
-
 module.exports = router; 

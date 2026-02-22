@@ -1,10 +1,15 @@
-require('dotenv').config();
+const { Sequelize, DataTypes } = require('sequelize');
 
-const config = {
-  port: process.env.PORT || 5000,
-  mongodbUri: process.env.MONGODB_URI || 'mongodb://localhost:27017/pharma-erp',
-  jwtSecret: process.env.JWT_SECRET || 'your_jwt_secret_key',
-  jwtExpiresIn: process.env.JWT_EXPIRES_IN || '7d'
-};
+const sequelize = new Sequelize(
+  process.env.DB_NAME,
+  process.env.DB_USER,
+  process.env.DB_PASSWORD,
+  {
+    host: process.env.DB_HOST,
+    port: process.env.DB_PORT,
+    dialect: 'postgres',
+    logging: false,
+  }
+);
 
-module.exports = config; 
+module.exports = { sequelize, DataTypes };

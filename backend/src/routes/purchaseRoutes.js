@@ -13,6 +13,5 @@ router.post('/', purchaseController.createPurchase);
 router.delete('/:id', purchaseController.deletePurchase);
 
 // Update status route
-router.put('/:id/status', purchaseController.updatePurchaseStatus);
 
 module.exports = router; 

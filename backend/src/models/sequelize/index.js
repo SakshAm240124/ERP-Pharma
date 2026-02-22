@@ -1,5 +1,4 @@
-const { sequelize, DataTypes } = require('../../../config/sequelize');
-
+const { sequelize, DataTypes } = require('../../config/config');
 // Import models
 const User = require('./User')(sequelize, DataTypes);
 const Product = require('./product')(sequelize, DataTypes);
