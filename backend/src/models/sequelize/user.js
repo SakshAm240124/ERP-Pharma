@@ -1,7 +1,7 @@
 const bcrypt = require('bcryptjs');
 
 module.exports = (sequelize, DataTypes) => {
-  const User = sequelize.define('User', {
+  const user = sequelize.define('user', {
     name: {
       type: DataTypes.STRING,
       allowNull: false
@@ -45,9 +45,9 @@ module.exports = (sequelize, DataTypes) => {
   });
 
   // Method to check password validity
-  User.prototype.matchPassword = async function(enteredPassword) {
+  user.prototype.matchPassword = async function(enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
   };
 
-  return User;
+  return user;
 }; 
